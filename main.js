@@ -1,14 +1,24 @@
-import { DatabaseSync } from 'node:sqlite';
+import {
+    DatabaseSync
+} from 'node:sqlite';
 import fs from 'node:fs';
 
 const DB_NAME = 'plataforma_web.db';
 
-// 1. Limpieza previa del entorno (por si ejecutas el script varias veces)
-if (fs.existsSync(DB_NAME)) {
-    fs.unlinkSync(DB_NAME);
+// Función auxiliar para leer el tamaño del archivo en bytes
+const obtenerTamanoDB = () => fs.existsSync(DB_NAME) ? fs.statSync(DB_NAME).size : 0;
+
+// 1. Limpieza previa del entorno
+try {
+    if (fs.existsSync(DB_NAME)) {
+        fs.unlinkSync(DB_NAME);
+    }
+} catch (error) {
+    console.error("❌ ERROR: Cierra DB Browser, VS Code SQLite Viewer o DBeaver antes de ejecutar el script.");
+    process.exit(1);
 }
 
-console.log(" Iniciando entorno de simulación de Sostenibilidad...");
+console.log("🌱 Iniciando entorno de simulación de Sostenibilidad...");
 const db = new DatabaseSync(DB_NAME);
 
 // 2. Creación de la estructura de tablas
@@ -21,7 +31,6 @@ db.exec(`
         fecha_inicio DATETIME NOT NULL,
         ultima_actividad DATETIME NOT NULL
     );
-
     CREATE TABLE logs_sistema (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nivel_log TEXT CHECK(nivel_log IN ('INFO', 'DEBUG', 'WARNING', 'ERROR')),
@@ -30,9 +39,9 @@ db.exec(`
         fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 `);
-console.log(" Estructura de tablas creada con éxito.");
+console.log("✅ Estructura de tablas creada con éxito.");
 
-// 3. Inserción masiva de datos (Simulación de acumulación masiva y obsoleta)
+// 3. Inserción masiva de datos (Simulación de acumulación)
 db.exec(`
     -- Datos históricos obsoletos (Años 2022 y 2023)
     INSERT INTO sesiones_usuario (usuario_id, token, ip_conexion, fecha_inicio, ultima_actividad) VALUES
@@ -58,12 +67,30 @@ db.exec(`
     ('ERROR', 'BillingSystem', 'Error crítico: No se pudo procesar la suscripción mensual', '2026-05-28 08:15:33'),
     ('INFO', 'AuthService', 'Usuario 502 ha cambiado su contraseña', '2026-05-28 10:00:22');
 `);
-console.log(" Datos iniciales inyectados en el sistema.");
-
-// Función auxiliar para leer el tamaño del archivo en disco de forma síncrona
-const obtenerTamanoDB = () => fs.statSync(DB_NAME).size;
+console.log("💾 Datos iniciales inyectados.");
 
 const tamanoInicial = obtenerTamanoDB();
+console.log(`📊 Tamaño inicial de la BD: ${tamanoInicial} bytes`);
+
+// 4. PURGA SOSTENIBLE (Ejecución de las consultas corregidas)
+console.log("\n🧹 Ejecutando purga de datos obsoletos...");
+db.exec(`DELETE FROM sesiones_usuario WHERE ultima_actividad < '2025-01-01';`);
+db.exec(`
+    DELETE FROM logs_sistema 
+    WHERE fecha_registro < '2026-01-01' 
+      AND nivel_log NOT IN ('ERROR', 'WARNING');
+`);
+
+const tamanoTrasDelete = obtenerTamanoDB();
+console.log(`📊 Tamaño tras el DELETE (sin VACUUM): ${tamanoTrasDelete} bytes (Sigue igual por las páginas libres)`);
+
+// 5. COMPACTACIÓN DE ENERGÍA / ESPACIO (VACUUM)
+console.log("📉 Aplicando VACUUM para liberar espacio en disco...");
+db.exec(`VACUUM;`);
+
+const tamanoFinal = obtenerTamanoDB();
+console.log(`📊 Tamaño final en disco (con VACUUM): ${tamanoFinal} bytes`);
+console.log(`♻️ Espacio ahorrado: ${tamanoTrasDelete - tamanoFinal} bytes.`);
 
 // Cerramos la base de datos de manera limpia
 db.close();
